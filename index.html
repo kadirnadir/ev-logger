@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EV Şarj Logger</title>
+    <style>
+        :root { 
+            --bg: #121212; 
+            --surface: #1e1e1e; 
+            --primary: #03dac6; 
+            --primary-dark: #018786;
+            --error: #cf6679; 
+            --text: #ffffff; 
+            --text-sec: #b3b3b3; 
+        }
+        * { 
+            box-sizing: border-box; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        body { 
+            background-color: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            padding: 16px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh; 
+            overscroll-behavior: none; 
+        }
+        .screen { 
+            display: none; 
+            width: 100%; 
+            max-width: 420px; 
+            flex-direction: column; 
+            gap: 14px; 
+        }
+        .screen.active { 
+            display: flex; 
+        }
+        h1, h2, h3 { 
+            text-align: center; 
+            margin: 0 0 8px 0; 
+        }
+        button { 
+            background-color: var(--surface); 
+            color: var(--text); 
+            border: 1px solid #333; 
+            padding: 14px; 
+            border-radius: 10px; 
+            font-size: 16px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: background 0.2s, transform 0.1s; 
+        }
+        button:active { 
+            background-color: #333; 
+            transform: scale(0.98);
+        }
+        .btn-primary { 
+            background-color: var(--primary); 
+            color: #000; 
+            border: none; 
+        }
+        .btn-primary:active { 
+            background-color: var(--primary-dark); 
+        }
+        .btn-error { 
+            background-color: transparent; 
+            color: var(--error); 
+            border-color: var(--error); 
+        }
+        .btn-giant { 
+            padding: 24px; 
+            font-size: 19px; 
+            background-color: var(--primary); 
+            color: #000; 
+            border-radius: 16px; 
+            margin: 10px 0; 
+            border: none;
+        }
+        .btn-giant:disabled { 
+            background-color: #444; 
+            color: #888; 
+            cursor: not-allowed; 
+            transform: none;
+        }
+        .row { 
+            display: flex; 
+            gap: 8px; 
+            justify-content: space-between; 
+        }
+        .row button { 
+            flex: 1; 
+            padding: 12px 0;
+        }
+        input[type="number"], select { 
+            width: 100%; 
+            background-color: var(--surface); 
+            color: var(--text); 
+            border: 1px solid #333; 
+            padding: 14px; 
+            border-radius: 10px; 
+            font-size: 16px; 
+            outline: none;
+        }
+        input[type="number"]:focus, select:focus {
+            border-color: var(--primary);
+        }
+        label { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            background-color: var(--surface); 
+            padding: 14px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            font-size: 14px; 
+            user-select: none;
+        }
+        input[type="checkbox"] { 
+            width: 22px; 
+            height: 22px; 
+            min-width: 22px; 
+            accent-color: var(--primary);
+        }
+        .value-display { 
+            font-size: 52px; 
+            font-weight: 800; 
+            text-align: center; 
+            margin: 5px 0; 
+            color: var(--primary); 
+        }
+        .timer { 
+            text-align: center; 
+            color: var(--text-sec); 
+            font-size: 15px; 
+            font-weight: 500;
+        }
+        .log-list { 
+            margin-top: 15px; 
+            font-size: 13px; 
+            color: var(--text-sec); 
+            max-height: 160px; 
+            overflow-y: auto; 
+            background: #181818;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px solid #282828;
+        }
+        .empty-state { 
+            text-align: center; 
+            color: var(--text-sec); 
+            padding: 40px 0; 
+            font-style: italic; 
+        }
+        .location-box { 
+            font-size: 12px; 
+            color: var(--primary); 
+            text-align: center; 
+            padding: 12px; 
+            background: rgba(3, 218, 198, 0.08); 
+            border: 1px solid rgba(3, 218, 198, 0.2);
+            border-radius: 10px; 
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SCREEN 1: MENU -->
+    <div id="scr-menu" class="screen active">
+        <h2 style="margin-top: 30px;">🔋 EV Şarj Logger</h2>
+        <p style="text-align:center; color: var(--text-sec); font-size:14px; margin-bottom: 20px;">Hassas Şarj Eğrisi Veri Toplayıcı</p>
+        <button class="btn-primary" onclick="startNewRecord()">Yeni Kayıt Başlat</button>
+        <button onclick="showHistory()">Geçmiş Kayıtlar (CSV)</button>
+    </div>
+
+    <!-- SCREEN 2: SETUP -->
+    <div id="scr-setup" class="screen">
+        <h3>Başlangıç Parametreleri</h3>
+        
+        <div id="loc-display" class="location-box">📍 Konum alınıyor... Lütfen bekleyin.</div>
+        
+        <select id="inp-operator">
+            <option value="" disabled selected>Şarj Ağı Operatörü Seçin</option>
+            <option value="Astor Şarj">Astor Şarj</option>
+            <option value="Beefull">Beefull</option>
+            <option value="CVK Şarj">CVK Şarj</option>
+            <option value="EnYakıt">EnYakıt</option>
+            <option value="Epsis">Epsis</option>
+            <option value="Eşarj">Eşarj</option>
+            <option value="Gio Şarj">Gio Şarj</option>
+            <option value="Neva Şarj">Neva Şarj</option>
+            <option value="On Charge">On Charge</option>
+            <option value="Otopriz">Otopriz</option>
+            <option value="Qcharge">Qcharge</option>
+            <option value="Sharz.net">Sharz.net</option>
+            <option value="Shell Recharge">Shell Recharge</option>
+            <option value="Tetaş Şarj">Tetaş Şarj</option>
+            <option value="Tora Şarj">Tora Şarj</option>
+            <option value="TotalEnergies">TotalEnergies</option>
+            <option value="Trugo">Trugo</option>
+            <option value="Tunçmatik">Tunçmatik</option>
+            <option value="Voltrun">Voltrun</option>
+            <option value="Wat Mobilite">Wat Mobilite</option>
+            <option value="ZES">ZES</option>
+            <option value="Diğer">Diğer</option>
+        </select>
+
+        <input type="number" id="inp-temp" placeholder="Dış Hava Sıcaklığı (°C)" min="-40" max="60">
+        <input type="number" id="inp-soc" placeholder="Mevcut Batarya Yüzdesi (%)" min="0" max="100">
+        
+        <label><input type="checkbox" id="inp-hot"> Batarya Sıcak (Uzun yoldan geldi)</label>
+        <label><input type="checkbox" id="inp-precond"> Batarya Ön Koşullandırma Yapıldı</label>
+        
+        <div class="row" style="margin-top: 10px;">
+            <button onclick="nav('scr-menu')">İptal</button>
+            <button class="btn-primary" onclick="initSession()">Devam Et</button>
+        </div>
+    </div>
+
+    <!-- SCREEN 3: START (WAITING) -->
+    <div id="scr-start" class="screen">
+        <h3>Sıfır Noktası Bekleme</h3>
+        <p style="text-align: center; color: var(--text-sec); font-size: 14px; margin: 15px 0;">
+            İstasyonda şarj işlemini başlatın. Ekranda kW değeri ve aktarım başladığı an aşağıdaki butona basın.
+        </p>
+        <button class="btn-giant" onclick="startTimer()">ŞARJ BAŞLADI<br><small style="font-size:13px; font-weight:normal;">(T=0 Başlangıç Saatini Al)</small></button>
+        <button class="btn-error" onclick="nav('scr-menu')">Vazgeç / İptal</button>
+    </div>
+
+    <!-- SCREEN 4: SOC CAPTURE -->
+    <div id="scr-soc" class="screen">
+        <div class="timer" id="timer-display-soc">Geçen Süre: 00:00</div>
+        <div style="text-align:center; color: var(--text-sec); font-size:13px;">BEKLENEN YÜZDE</div>
+        <div class="value-display">%<span id="disp-soc">--</span></div>
+        
+        <div class="row">
+            <button onclick="adjSoc(-5)">-5</button>
+            <button onclick="adjSoc(-1)">-1</button>
+            <button onclick="adjSoc(1)">+1</button>
+            <button onclick="adjSoc(5)">+5</button>
+        </div>
+        
+        <button id="btn-cap-soc" class="btn-giant" onclick="captureTime()">
+            ZAMAN DAMGASI AL<br>
+            <small style="font-size:13px; font-weight:normal;">(Yüzde Arttığı An Dokun)</small>
+        </button>
+        
+        <div class="row">
+            <button onclick="undoLast()">↩ Son Kaydı Sil</button>
+            <button class="btn-error" onclick="endSession()">Kaydı Bitir</button>
+        </div>
+        
+        <div class="log-list" id="log-list-soc"></div>
+    </div>
+
+    <!-- SCREEN 5: KW CAPTURE -->
+    <div id="scr-kw" class="screen">
+        <div class="timer" id="timer-display-kw">Geçen Süre: 00:00</div>
+        <h3 style="margin-bottom:0;">Anlık Güç (kW)</h3>
+        <input type="number" id="inp-kw" placeholder="kW Değeri" min="0" max="500" style="text-align:center; font-size:28px; font-weight:bold; color:var(--primary);">
+        
+        <div class="row">
+            <button onclick="adjKw(-10)">-10</button>
+            <button onclick="adjKw(-5)">-5</button>
+            <button onclick="adjKw(-1)">-1</button>
+            <button onclick="adjKw(1)">+1</button>
+            <button onclick="adjKw(5)">+5</button>
+            <button onclick="adjKw(10)">+10</button>
+        </div>
+        
+        <label><input type="checkbox" id="inp-comp"> ❄️ Kompresör / Soğutma Aktif</label>
+        
+        <button class="btn-giant" onclick="saveDataPoint()">KAYDET VE DEVAM ET</button>
+    </div>
+
+    <!-- SCREEN 6: HISTORY -->
+    <div id="scr-history" class="screen">
+        <h3>Kayıt Geçmişi</h3>
+        <div id="history-list"></div>
+        <button onclick="nav('scr-menu')" style="margin-top: 10px;">Ana Menüye Dön</button>
+    </div>
+
+    <script>
+        let session = { logs: [], startMs: 0, currentSoc: 0, lastKw: 20, temp: 0, isHot: false, isPrecond: false, operator: "", lat: 0, lon: 0, capMs: 0 };
+        let timerInt = null;
+        let wakeLock = null;
+
+        const reqWakeLock = async () => { 
+            try { 
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen'); 
+                }
+            } catch (err) {} 
+        };
+        
+        const relWakeLock = () => { 
+            if(wakeLock !== null) { 
+                wakeLock.release(); 
+                wakeLock = null; 
+            } 
+        };
+
+        function nav(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        function startNewRecord() {
+            nav('scr-setup');
+            const locDiv = document.getElementById('loc-display');
+            
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                locDiv.innerHTML = "⚠️ <strong>HTTPS Gerekli:</strong><br>GPS için siteyi güvenli bağlantı (GitHub Pages / HTTPS) üzerinden açmalısınız.";
+                session.lat = "HTTPS_Yok";
+                session.lon = "HTTPS_Yok";
+                return;
+            }
+
+            locDiv.innerText = "📍 Konum alınıyor... Lütfen bekleyin.";
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        session.lat = pos.coords.latitude.toFixed(6);
+                        session.lon = pos.coords.longitude.toFixed(6);
+                        locDiv.innerHTML = `📍 <strong>Konum Alındı:</strong> ${session.lat}, ${session.lon}`;
+                    },
+                    (err) => {
+                        let msg = "Konum alınamadı.";
+                        if (err.code === err.PERMISSION_DENIED) msg = "Konum izni reddedildi.";
+                        else if (err.code === err.TIMEOUT) msg = "Konum zaman aşımına uğradı.";
+                        locDiv.innerHTML = `⚠️ ${msg} <br><button onclick="startNewRecord()" style="margin-top:6px; padding:4px 10px; font-size:11px;">Yeniden Dene</button>`;
+                        session.lat = "Alinamadi";
+                        session.lon = "Alinamadi";
+                    },
+                    { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+                );
+            } else {
+                locDiv.innerText = "📍 Tarayıcınız konum özelliğini desteklemiyor.";
+            }
+        }
+
+        function initSession() {
+            let temp = document.getElementById('inp-temp').value;
+            let soc = document.getElementById('inp-soc').value;
+            let opr = document.getElementById('inp-operator').value;
+            
+            if(!opr) return alert("Lütfen Şarj Operatörünü seçin!");
+            if(temp === "" || soc === "") return alert("Sıcaklık ve Yüzde alanlarını doldurun!");
+            
+            let socNum = parseInt(soc);
+            if(socNum < 0 || socNum >= 100) return alert("Mevcut yüzde 0 ile 99 arasında olmalıdır!");
+
+            session.temp = temp;
+            session.currentSoc = socNum + 1;
+            session.isHot = document.getElementById('inp-hot').checked;
+            session.isPrecond = document.getElementById('inp-precond').checked;
+            session.operator = opr;
+            session.logs = [];
+            session.lastKw = 20;
+            
+            nav('scr-start');
+        }
+
+        function startTimer() {
+            session.startMs = Date.now();
+            reqWakeLock();
+            if (timerInt) clearInterval(timerInt);
+            timerInt = setInterval(updateTimer, 1000);
+            updateSocDisplay();
+            nav('scr-soc');
+        }
+
+        function updateTimer() {
+            let s = Math.floor((Date.now() - session.startMs) / 1000);
+            let txt = `Geçen Süre: ${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+            document.getElementById('timer-display-soc').innerText = txt;
+            document.getElementById('timer-display-kw').innerText = txt;
+        }
+
+        function adjSoc(val) { 
+            session.currentSoc = Math.max(1, Math.min(100, session.currentSoc + val)); 
+            updateSocDisplay(); 
+        }
+
+        function updateSocDisplay() { 
+            document.getElementById('disp-soc').innerText = session.currentSoc; 
+            renderLogs(); 
+        }
+        
+        function captureTime() {
+            const btn = document.getElementById('btn-cap-soc');
+            btn.disabled = true; 
+            setTimeout(() => btn.disabled = false, 1000); // 1s Debounce
+            
+            session.capMs = Date.now();
+            document.getElementById('inp-kw').value = session.lastKw;
+            nav('scr-kw');
+        }
+
+        function adjKw(val) {
+            let cur = parseFloat(document.getElementById('inp-kw').value || session.lastKw);
+            document.getElementById('inp-kw').value = Math.max(0, cur + val);
+        }
+
+        function saveDataPoint() {
+            let kw = parseFloat(document.getElementById('inp-kw').value);
+            if(isNaN(kw) || kw < 0) return alert("Geçerli bir kW değeri girin!");
+            
+            session.lastKw = kw;
+            session.logs.push({
+                soc: session.currentSoc,
+                secFromStart: Math.floor((session.capMs - session.startMs) / 1000),
+                kw: kw,
+                comp: document.getElementById('inp-comp').checked ? "Evet" : "Hayır",
+                timeStr: new Date(session.capMs).toLocaleTimeString()
+            });
+            
+            session.currentSoc = Math.min(100, session.currentSoc + 1);
+            updateSocDisplay();
+            nav('scr-soc');
+        }
+
+        function undoLast() {
+            if(session.logs.length === 0) return alert("Silinecek bir kayıt bulunmuyor.");
+            if(confirm("Son kaydedilen ölçümü silmek istediğinize emin misiniz?")) {
+                let last = session.logs.pop();
+                session.currentSoc = last.soc;
+                updateSocDisplay();
+            }
+        }
+
+        function renderLogs() {
+            const list = document.getElementById('log-list-soc');
+            if(session.logs.length === 0) {
+                list.innerHTML = "<div style='text-align:center;'>Henüz veri girilmedi.</div>";
+                return;
+            }
+            list.innerHTML = session.logs.slice().reverse().map(l => 
+                `<div class="log-item">%${l.soc} &nbsp;|&nbsp; ${l.timeStr} (${l.secFromStart}sn) &nbsp;|&nbsp; ${l.kw} kW &nbsp;|&nbsp; Komp: ${l.comp}</div>`
+            ).join('');
+        }
+
+        function endSession() {
+            if(confirm("Şarj kaydını bitirip hafızaya almak istiyor musunuz?")) {
+                clearInterval(timerInt);
+                relWakeLock();
+                if(session.logs.length > 0) {
+                    let all = JSON.parse(localStorage.getItem('evLogs') || "[]");
+                    all.push({ 
+                        date: new Date().toLocaleString(), 
+                        setup: {
+                            temp: session.temp, 
+                            hot: session.isHot, 
+                            precond: session.isPrecond, 
+                            operator: session.operator, 
+                            lat: session.lat, 
+                            lon: session.lon
+                        }, 
+                        data: session.logs 
+                    });
+                    localStorage.setItem('evLogs', JSON.stringify(all));
+                }
+                nav('scr-menu');
+            }
+        }
+
+        function showHistory() {
+            let all = JSON.parse(localStorage.getItem('evLogs') || "[]");
+            let div = document.getElementById('history-list');
+            if(all.length === 0) {
+                div.innerHTML = "<div class='empty-state'>Henüz kaydedilmiş bir şarj seansı bulunmuyor.</div>";
+            } else {
+                div.innerHTML = all.map((s, i) => 
+                    `<div style="background:#1e1e1e; border:1px solid #333; padding:12px; margin-bottom:10px; border-radius:10px;">
+                        <strong>${s.date}</strong><br>
+                        <span style="color:var(--primary);">${s.setup.operator}</span> &nbsp;|&nbsp; ${s.setup.temp}°C<br>
+                        <small style="color:var(--text-sec);">Kayıt: ${s.data.length} nokta | Ön Koşullandırma: ${s.setup.precond ? 'Evet' : 'Hayır'}</small>
+                        <div class="row" style="margin-top:8px;">
+                            <button onclick="downloadCSV(${i})" class="btn-primary" style="padding:8px;">CSV İndir</button>
+                            <button onclick="deleteSession(${i})" class="btn-error" style="padding:8px;">Sil</button>
+                        </div>
+                    </div>`
+                ).reverse().join('');
+            }
+            nav('scr-history');
+        }
+
+        function deleteSession(index) {
+            if(confirm("Bu şarj seansını silmek istediğinize emin misiniz?")) {
+                let all = JSON.parse(localStorage.getItem('evLogs') || "[]");
+                all.splice(index, 1);
+                localStorage.setItem('evLogs', JSON.stringify(all));
+                showHistory();
+            }
+        }
+
+        function downloadCSV(index) {
+            let session = JSON.parse(localStorage.getItem('evLogs'))[index];
+            let csv = "\uFEFFSaat,Gecen_Sure_Sn,Hedef_SOC_Yuzde,Guc_kW,Kompresor_Acik,Dis_Sicaklik_C,Batarya_Sicak,On_Kosullandirma,Operator,Enlem,Boylam\n";
+            session.data.forEach(row => {
+                csv += `${row.timeStr},${row.secFromStart},${row.soc},${row.kw},${row.comp},${session.setup.temp},${session.setup.hot ? 'Evet' : 'Hayır'},${session.setup.precond ? 'Evet' : 'Hayır'},${session.setup.operator},${session.setup.lat},${session.setup.lon}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `sarj_egrisi_${session.date.replace(/[\/\s:,.]/g, '_')}.csv`);
+            a.click();
+        }
+    </script>
+</body>
+</html>
