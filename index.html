@@ -111,7 +111,7 @@
         }
         label { 
             display: flex; 
-            align-items: center; 
+            align-items: flex-start; 
             gap: 12px; 
             background-color: var(--surface); 
             padding: 14px; 
@@ -125,6 +125,7 @@
             height: 22px; 
             min-width: 22px; 
             accent-color: var(--primary);
+            margin-top: 2px;
         }
         .value-display { 
             font-size: 52px; 
@@ -187,6 +188,21 @@
         
         <div id="loc-display" class="location-box">📍 Konum alınıyor... Lütfen bekleyin.</div>
         
+        <div class="row">
+            <select id="inp-vehicle">
+                <option value="" disabled selected>Araç Modeli</option>
+                <option value="Togg T10X">Togg T10X</option>
+                <option value="Togg T10F">Togg T10F</option>
+                <option value="Diğer">Diğer</option>
+            </select>
+            <select id="inp-battery">
+                <option value="" disabled selected>Batarya Tipi</option>
+                <option value="NMC">NMC</option>
+                <option value="LFP">LFP</option>
+                <option value="Bilinmiyor">Bilinmiyor</option>
+            </select>
+        </div>
+
         <select id="inp-operator">
             <option value="" disabled selected>Şarj Ağı Operatörü Seçin</option>
             <option value="Astor Şarj">Astor Şarj</option>
@@ -213,11 +229,28 @@
             <option value="Diğer">Diğer</option>
         </select>
 
-        <input type="number" id="inp-temp" placeholder="Dış Hava Sıcaklığı (°C)" min="-40" max="60">
-        <input type="number" id="inp-soc" placeholder="Mevcut Batarya Yüzdesi (%)" min="0" max="100">
+        <div class="row">
+            <input type="number" id="inp-max-power" placeholder="İstasyon Max (kW)" min="0" max="1000">
+            <input type="number" id="inp-temp" placeholder="Dış Sıcaklık (°C)" min="-40" max="60">
+        </div>
         
-        <label><input type="checkbox" id="inp-hot"> Batarya Sıcak (Uzun yoldan geldi)</label>
-        <label><input type="checkbox" id="inp-precond"> Batarya Ön Koşullandırma Yapıldı</label>
+        <input type="number" id="inp-soc" placeholder="Mevcut Yüzde (%)" min="0" max="100">
+        
+        <label style="align-items: center;">
+            <input type="checkbox" id="inp-hot"> Batarya Sıcak (Uzun yoldan geldi)
+        </label>
+        
+        <label>
+            <input type="checkbox" id="inp-precond"> 
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <span>Navigasyonda Şarj İstasyonu Seçildi</span>
+                <span style="color:var(--text-sec); font-size:12px;">(Ön koşullandırma özelliği tespiti için)</span>
+            </div>
+        </label>
+
+        <label style="align-items: center;">
+            <input type="checkbox" id="inp-second-car-setup"> 🔌 Başka bir araç şarj oluyor (Güç Paylaşımı)
+        </label>
         
         <div class="row" style="margin-top: 10px;">
             <button onclick="nav('scr-menu')">İptal</button>
@@ -276,7 +309,14 @@
             <button onclick="adjKw(10)">+10</button>
         </div>
         
-        <label><input type="checkbox" id="inp-comp"> ❄️ Kompresör / Soğutma Aktif</label>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+            <label style="align-items: center;">
+                <input type="checkbox" id="inp-comp"> ❄️ Kompresör / Soğutma Aktif
+            </label>
+            <label style="align-items: center;">
+                <input type="checkbox" id="inp-second-car-kw"> 🔌 2. Araç Bağlı (Güç Paylaşımı)
+            </label>
+        </div>
         
         <button class="btn-giant" onclick="saveDataPoint()">KAYDET VE DEVAM ET</button>
     </div>
@@ -289,7 +329,7 @@
     </div>
 
     <script>
-        let session = { logs: [], startMs: 0, currentSoc: 0, lastKw: 20, temp: 0, isHot: false, isPrecond: false, operator: "", lat: 0, lon: 0, capMs: 0 };
+        let session = { logs: [], startMs: 0, currentSoc: 0, lastKw: 20, temp: 0, maxPower: 0, isHot: false, isPrecond: false, secondCar: false, operator: "", vehicle: "", battery: "", lat: 0, lon: 0, capMs: 0 };
         let timerInt = null;
         let wakeLock = null;
 
@@ -350,20 +390,30 @@
         }
 
         function initSession() {
+            let veh = document.getElementById('inp-vehicle').value;
+            let bat = document.getElementById('inp-battery').value;
+            let opr = document.getElementById('inp-operator').value;
+            let maxP = document.getElementById('inp-max-power').value;
             let temp = document.getElementById('inp-temp').value;
             let soc = document.getElementById('inp-soc').value;
-            let opr = document.getElementById('inp-operator').value;
             
+            if(!veh) return alert("Lütfen Araç Modelini seçin!");
+            if(!bat) return alert("Lütfen Batarya Tipini seçin!");
             if(!opr) return alert("Lütfen Şarj Operatörünü seçin!");
+            if(maxP === "") return alert("Lütfen İstasyon Maksimum Gücünü girin!");
             if(temp === "" || soc === "") return alert("Sıcaklık ve Yüzde alanlarını doldurun!");
             
             let socNum = parseInt(soc);
             if(socNum < 0 || socNum >= 100) return alert("Mevcut yüzde 0 ile 99 arasında olmalıdır!");
 
+            session.vehicle = veh;
+            session.battery = bat;
+            session.maxPower = maxP;
             session.temp = temp;
             session.currentSoc = socNum + 1;
             session.isHot = document.getElementById('inp-hot').checked;
             session.isPrecond = document.getElementById('inp-precond').checked;
+            session.secondCar = document.getElementById('inp-second-car-setup').checked;
             session.operator = opr;
             session.logs = [];
             session.lastKw = 20;
@@ -400,10 +450,14 @@
         function captureTime() {
             const btn = document.getElementById('btn-cap-soc');
             btn.disabled = true; 
-            setTimeout(() => btn.disabled = false, 1000); // 1s Debounce
+            setTimeout(() => btn.disabled = false, 1000); 
             
             session.capMs = Date.now();
             document.getElementById('inp-kw').value = session.lastKw;
+            
+            // Sync second car status to capture screen
+            document.getElementById('inp-second-car-kw').checked = session.secondCar;
+            
             nav('scr-kw');
         }
 
@@ -416,12 +470,16 @@
             let kw = parseFloat(document.getElementById('inp-kw').value);
             if(isNaN(kw) || kw < 0) return alert("Geçerli bir kW değeri girin!");
             
+            // Update state from UI
+            session.secondCar = document.getElementById('inp-second-car-kw').checked;
             session.lastKw = kw;
+            
             session.logs.push({
                 soc: session.currentSoc,
                 secFromStart: Math.floor((session.capMs - session.startMs) / 1000),
                 kw: kw,
                 comp: document.getElementById('inp-comp').checked ? "Evet" : "Hayır",
+                secondCar: session.secondCar ? "Evet" : "Hayır",
                 timeStr: new Date(session.capMs).toLocaleTimeString()
             });
             
@@ -446,7 +504,7 @@
                 return;
             }
             list.innerHTML = session.logs.slice().reverse().map(l => 
-                `<div class="log-item">%${l.soc} &nbsp;|&nbsp; ${l.timeStr} (${l.secFromStart}sn) &nbsp;|&nbsp; ${l.kw} kW &nbsp;|&nbsp; Komp: ${l.comp}</div>`
+                `<div class="log-item">%${l.soc} &nbsp;|&nbsp; ${l.timeStr} &nbsp;|&nbsp; ${l.kw} kW<br><small style="color:#777;">Komp: ${l.comp} | 2.Araç: ${l.secondCar}</small></div>`
             ).join('');
         }
 
@@ -459,6 +517,9 @@
                     all.push({ 
                         date: new Date().toLocaleString(), 
                         setup: {
+                            vehicle: session.vehicle,
+                            battery: session.battery,
+                            maxPower: session.maxPower,
                             temp: session.temp, 
                             hot: session.isHot, 
                             precond: session.isPrecond, 
@@ -483,8 +544,9 @@
                 div.innerHTML = all.map((s, i) => 
                     `<div style="background:#1e1e1e; border:1px solid #333; padding:12px; margin-bottom:10px; border-radius:10px;">
                         <strong>${s.date}</strong><br>
-                        <span style="color:var(--primary);">${s.setup.operator}</span> &nbsp;|&nbsp; ${s.setup.temp}°C<br>
-                        <small style="color:var(--text-sec);">Kayıt: ${s.data.length} nokta | Ön Koşullandırma: ${s.setup.precond ? 'Evet' : 'Hayır'}</small>
+                        <span style="color:var(--primary);">${s.setup.vehicle} (${s.setup.battery})</span><br>
+                        ${s.setup.operator} (${s.setup.maxPower} kW) &nbsp;|&nbsp; Dış: ${s.setup.temp}°C<br>
+                        <small style="color:var(--text-sec);">Kayıt: ${s.data.length} nokta | Navigasyon Seçili: ${s.setup.precond ? 'Evet' : 'Hayır'}</small>
                         <div class="row" style="margin-top:8px;">
                             <button onclick="downloadCSV(${i})" class="btn-primary" style="padding:8px;">CSV İndir</button>
                             <button onclick="deleteSession(${i})" class="btn-error" style="padding:8px;">Sil</button>
@@ -506,9 +568,9 @@
 
         function downloadCSV(index) {
             let session = JSON.parse(localStorage.getItem('evLogs'))[index];
-            let csv = "\uFEFFSaat,Gecen_Sure_Sn,Hedef_SOC_Yuzde,Guc_kW,Kompresor_Acik,Dis_Sicaklik_C,Batarya_Sicak,On_Kosullandirma,Operator,Enlem,Boylam\n";
+            let csv = "\uFEFFSaat,Gecen_Sure_Sn,Hedef_SOC_Yuzde,Guc_kW,Kompresor_Acik,2_Arac_Bagli,Dis_Sicaklik_C,Batarya_Sicak,Nav_Istasyon_Secili,Arac_Modeli,Batarya_Tipi,Operator,Istasyon_Max_Guc,Enlem,Boylam\n";
             session.data.forEach(row => {
-                csv += `${row.timeStr},${row.secFromStart},${row.soc},${row.kw},${row.comp},${session.setup.temp},${session.setup.hot ? 'Evet' : 'Hayır'},${session.setup.precond ? 'Evet' : 'Hayır'},${session.setup.operator},${session.setup.lat},${session.setup.lon}\n`;
+                csv += `${row.timeStr},${row.secFromStart},${row.soc},${row.kw},${row.comp},${row.secondCar},${session.setup.temp},${session.setup.hot ? 'Evet' : 'Hayır'},${session.setup.precond ? 'Evet' : 'Hayır'},${session.setup.vehicle},${session.setup.battery},${session.setup.operator},${session.setup.maxPower},${session.setup.lat},${session.setup.lon}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = window.URL.createObjectURL(blob);
